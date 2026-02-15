@@ -1,0 +1,9 @@
+{
+  "name": "KrishiSahay - AI Powered Agricultural Decision Intelligence",
+  "description": "A comprehensive agricultural intelligence platform helping farmers make data-driven decisions on market sales, scheme eligibility, and weather-based crop management.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone",
+    "camera"
+  ]
+}
