@@ -23,7 +23,7 @@ BEHAVIORAL RULES:
 
 export const connectLiveAssistant = (callbacks: any) => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key not found");
+  if (!apiKey) throw new Error("API Key found");
 
   const ai = new GoogleGenAI({ apiKey });
   return ai.live.connect({
@@ -32,7 +32,7 @@ export const connectLiveAssistant = (callbacks: any) => {
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }, // Using Puck for a warm, clear tone
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
       },
       systemInstruction: LIVE_SYSTEM_INSTRUCTION,
       inputAudioTranscription: {},
@@ -90,21 +90,27 @@ export const getLiveSchemes = async (crop: string, state: string) => {
   } catch (error) { throw error; }
 };
 
-export const getVoiceAgriAdvice = async (question: string) => {
+export const getNearestFertilizerShops = async (location: string, fertilizerType: string) => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new Error("Gemini API Key not configured.");
   const ai = new GoogleGenAI({ apiKey });
+  // Specific instruction to check ONDC network and Justdial for fertilizer shops
+  const prompt = `Search for fertilizer shops and agricultural dealers near ${location} that are available on the ONDC (Open Network for Digital Commerce) network or listed on Justdial. Provide details on how to find these shops on ONDC-enabled buyer apps like Pincode, Paytm, or Mystore to purchase ${fertilizerType}. ${NO_SPECIAL_CHARS_RULE}`;
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: question,
+      model: 'gemini-3-pro-preview',
+      contents: prompt,
       config: {
-        systemInstruction: `Speak naturally in the farmer's language. ${NO_SPECIAL_CHARS_RULE}`,
-        temperature: 0.5,
-      }
+        tools: [{ googleSearch: {} }],
+      },
     });
-    return response.text || "I am sorry.";
-  } catch (error) { return "Error."; }
+    return {
+      text: response.text,
+      sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+    };
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const detectDisease = async (base64Image: string, mimeType: string) => {

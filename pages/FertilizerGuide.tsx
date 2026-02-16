@@ -1,20 +1,24 @@
 
 import React, { useState } from 'react';
-import { FlaskConical, Beaker, Sprout, Info, AlertTriangle, Loader2, Calculator, CheckCircle2, Leaf, ChevronDown } from 'lucide-react';
-import { Crop, SoilType, GrowthStage } from '../types';
-import { FERTILIZER_RULES, CROPS } from '../data/mockData';
-import { getFertilizerAdvice } from '../services/geminiService';
+import { FlaskConical, Beaker, Sprout, Info, AlertTriangle, Loader2, Calculator, CheckCircle2, Leaf, ChevronDown, MapPin, ExternalLink, ShoppingBag, Store, Globe } from 'lucide-react';
+import { Crop, SoilType, GrowthStage, State } from '../types';
+import { FERTILIZER_RULES, CROPS, STATES } from '../data/mockData';
+import { getFertilizerAdvice, getNearestFertilizerShops } from '../services/geminiService';
 
 const FertilizerGuide = () => {
   const [crop, setCrop] = useState<Crop>('Wheat');
   const [soil, setSoil] = useState<SoilType>('Loamy');
   const [stage, setStage] = useState<GrowthStage>('Sowing');
   const [area, setArea] = useState<number>(1);
+  const [selectedState, setSelectedState] = useState<State>('Maharashtra');
   const [loading, setLoading] = useState(false);
+  const [shopsLoading, setShopsLoading] = useState(false);
   const [recommendation, setRecommendation] = useState<any>(null);
+  const [shops, setShops] = useState<any>(null);
 
   const calculateRecommendation = async () => {
     setLoading(true);
+    setShops(null);
     // Use fallback if crop not in rules
     const rule = FERTILIZER_RULES.find(r => r.crop === crop) || {
       crop: crop,
@@ -48,6 +52,21 @@ const FertilizerGuide = () => {
     }
   };
 
+  const findNearestShops = async () => {
+    if (!recommendation) return;
+    setShopsLoading(true);
+    try {
+      // Determine fertilizer type based on NPK requirements
+      const fertType = recommendation.totalN > 0 ? "Urea and DAP" : "Compost and NPK Mix";
+      const result = await getNearestFertilizerShops(selectedState, fertType);
+      setShops(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setShopsLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 pb-20">
       <div className="mb-10 flex flex-col md:flex-row justify-between items-end gap-6">
@@ -66,6 +85,19 @@ const FertilizerGuide = () => {
             <Beaker className="w-5 h-5" /> Calculation Params
           </h3>
           <div className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Your State</label>
+              <div className="relative">
+                <select 
+                  value={selectedState} 
+                  onChange={(e) => setSelectedState(e.target.value as State)}
+                  className="w-full p-4 bg-[#111827] border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-green-500 transition-all font-bold appearance-none"
+                >
+                  {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+              </div>
+            </div>
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Crop Selection</label>
               <div className="relative">
@@ -161,6 +193,81 @@ const FertilizerGuide = () => {
                      {recommendation.aiAdvice}
                    </div>
                 </div>
+              </div>
+
+              {/* Purchase Options / Shops locator */}
+              <div className="bg-[#1F2937] rounded-[2.5rem] border border-white/5 shadow-2xl overflow-hidden p-10 space-y-8">
+                 <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div>
+                       <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                         <Globe className="w-7 h-7 text-emerald-500" /> ONDC Market Locator
+                       </h3>
+                       <p className="text-gray-500 text-sm font-medium mt-1">Discover fertilizer shops on the ONDC network and Justdial near you.</p>
+                    </div>
+                    {!shops && (
+                      <button 
+                        onClick={findNearestShops}
+                        disabled={shopsLoading}
+                        className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 text-white font-bold transition-all flex items-center gap-3"
+                      >
+                        {shopsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />}
+                        Find ONDC Sellers
+                      </button>
+                    )}
+                 </div>
+
+                 {shopsLoading && (
+                   <div className="py-20 flex flex-col items-center">
+                      <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
+                      <p className="text-gray-500 font-black uppercase tracking-widest text-[10px]">Scanning ONDC Network & Local Directories...</p>
+                   </div>
+                 )}
+
+                 {shops && (
+                   <div className="space-y-6 animate-fade-in">
+                      <div className="p-6 bg-[#111827] rounded-3xl border border-emerald-900/30">
+                         <div className="flex items-center gap-2 text-emerald-500 mb-4">
+                            <Store className="w-4 h-4" />
+                            <span className="text-xs font-black uppercase tracking-widest">Recommended Dealers & ONDC Links</span>
+                         </div>
+                         <p className="text-gray-300 leading-relaxed">{shops.text}</p>
+                      </div>
+
+                      {shops.sources?.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {shops.sources.map((chunk: any, i: number) => (
+                             chunk.web && (
+                               <a 
+                                 key={i} 
+                                 href={chunk.web.uri} 
+                                 target="_blank" 
+                                 rel="noopener noreferrer" 
+                                 className="flex items-center justify-between p-5 bg-white/5 rounded-[1.5rem] border border-white/5 hover:border-emerald-500/30 transition-all group"
+                               >
+                                 <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                                       <ShoppingBag className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                       <div className="text-sm font-bold text-white line-clamp-1">{chunk.web.title || 'Fertilizer Dealer'}</div>
+                                       <div className="text-[10px] text-gray-500 uppercase font-black">ONDC / Marketplace Partner</div>
+                                    </div>
+                                 </div>
+                                 <ExternalLink className="w-4 h-4 text-gray-600 group-hover:text-emerald-500 transition-colors" />
+                               </a>
+                             )
+                           ))}
+                        </div>
+                      )}
+                      
+                      <div className="mt-4 p-4 bg-emerald-950/20 rounded-2xl border border-emerald-500/10 flex items-center gap-3">
+                        <Info className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <p className="text-[11px] text-gray-400 font-medium italic">
+                          Tip: Use buyer apps like Mystore, Paytm, or Pincode to access the ONDC network and search for 'Fertilizer' in your pin code.
+                        </p>
+                      </div>
+                   </div>
+                 )}
               </div>
             </div>
           )}
